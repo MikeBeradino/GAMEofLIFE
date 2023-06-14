@@ -1,1 +1,223 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      body {
+        background-color: #f2f2f2;
+        margin: 0;
+        padding: 0;
+      }
 
+      #game-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 90vh;
+      }
+
+      canvas {
+        border: 1px solid #ccc;
+      }
+
+      #controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      #controls > * {
+        margin-right: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <canvas id="game"></canvas>
+    </div>
+
+<div id="controls" style="flex-direction: column;">
+  <button id="clear-button">Clear</button>
+  <button id="pause-button">Start</button>
+  <button id="random-button">Random Cells</button>
+  <label for="speed-slider">Speed:</label>
+  <input id="speed-slider" type="range" min="1" max="30" value="10" step="1" />
+  <button id="capture-button">Capture</button>
+</div>
+
+
+
+
+    <script>
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      let cellSize = 10;
+      let rows;
+      let columns;
+
+      function updateGridDimensions() {
+        const width = window.innerWidth * 0.6;
+        const height = window.innerHeight * 0.6;
+
+        columns = Math.floor(width / cellSize);
+        rows = Math.floor(height / cellSize);
+
+        canvas.width = columns * cellSize;
+        canvas.height = rows * cellSize;
+
+        grid = createGrid(columns, rows);
+        randomCells();
+        drawGrid();
+      }
+
+      let grid;
+      let isDrawing = false;
+      let intervalId = null;
+
+      canvas.addEventListener("mousedown", () => (isDrawing = true));
+      canvas.addEventListener("mouseup", () => (isDrawing = false));
+      canvas.addEventListener("mousemove", drawCell);
+      canvas.addEventListener("mouseout", () => (isDrawing = false));
+
+      document.getElementById("clear-button").addEventListener("click", clearGrid);
+      document.getElementById("pause-button").addEventListener("click", toggleGame);
+      document.getElementById("random-button").addEventListener("click", randomCells);
+      document.getElementById("capture-button").addEventListener("click", captureGrid);
+      document.getElementById("speed-slider").addEventListener("input", (event) => updateSpeed(event.target.value));
+
+      window.addEventListener("resize", updateGridDimensions);
+      updateGridDimensions();
+
+      function createGrid(columns, rows) {
+        return Array.from({ length: columns }, () => new Array(rows).fill(0));
+      }
+
+      function clearGrid() {
+        grid = createGrid(columns, rows);
+        drawGrid();
+      }
+
+      function drawGrid() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < columns; i++) {
+          for (let j = 0; j < rows; j++) {
+            const cellValue = grid[i][j];
+            const x = i * cellSize;
+            const y = j * cellSize;
+
+            if (cellValue === 1) {
+              const hue = (i + j) * 10;
+              ctx.fillStyle = `hsl(${hue}, 70%, 50%)`;
+              ctx.fillRect(x, y, cellSize, cellSize);
+            }
+          }
+        }
+      }
+
+      function drawCell(event) {
+  if (isDrawing) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    const cellX = Math.floor(mouseX / cellSize);
+    const cellY = Math.floor(mouseY / cellSize);
+
+    if (cellX >= 0 && cellX < columns && cellY >= 0 && cellY < rows) {
+      grid[cellX][cellY] = 1;
+      drawGrid();
+    }
+  }
+}
+
+      function toggleGame() {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+          document.getElementById("pause-button").textContent = "Start";
+        } else {
+          intervalId = setInterval(updateGrid, 100);
+          document.getElementById("pause-button").textContent = "Pause/Resume";
+        }
+      }
+
+      function updateGrid() {
+        const nextGrid = createGrid(columns, rows);
+
+        for (let i = 0; i < columns; i++) {
+          for (let j = 0; j < rows; j++) {
+            const cellValue = grid[i][j];
+            const liveNeighbors = countLiveNeighbors(i, j);
+
+            if (cellValue === 1 && (liveNeighbors < 2 || liveNeighbors > 3)) {
+              nextGrid[i][j] = 0;
+            } else if (cellValue === 0 && liveNeighbors === 3) {
+              nextGrid[i][j] = 1;
+            } else {
+              nextGrid[i][j] = cellValue;
+            }
+          }
+        }
+
+        grid = nextGrid;
+        drawGrid();
+      }
+
+      function countLiveNeighbors(x, y) {
+        let count = 0;
+
+        for (let i = -1; i <= 1; i++) {
+          for (let j = -1; j <= 1; j++) {
+            const neighborX = x + i;
+            const neighborY = y + j;
+
+            if (i === 0 && j === 0) {
+              continue;
+            }
+
+            if (neighborX >= 0 && neighborX < columns && neighborY >= 0 && neighborY < rows) {
+              count += grid[neighborX][neighborY];
+            }
+          }
+        }
+
+        return count;
+      }
+
+      function updateSpeed(speed) {
+        clearInterval(intervalId);
+        intervalId = setInterval(updateGrid, 1100 - speed * 50);
+      }
+
+      function randomCells() {
+        clearGrid();
+        for (let i = 0; i < columns; i++) {
+          for (let j = 0; j < rows; j++) {
+            if (Math.random() < 0.25) {
+              grid[i][j] = 1;
+            }
+          }
+        }
+        drawGrid();
+      }
+
+      function captureGrid() {
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d");
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+
+        tempCtx.fillStyle = "#ffffff";
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        tempCtx.drawImage(canvas, 0, 0);
+
+        const dataUrl = tempCanvas.toDataURL("image/jpeg");
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = "game_of_life_capture.jpg";
+        link.click();
+      }
+    </script>
+  </body>
+</html>
